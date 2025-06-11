@@ -19,6 +19,7 @@
     "autoprefixer": "^10.4.21",
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
+    "lucide-react": "^0.514.0",
     "mermaid": "^11.6.0",
     "postcss": "^8.4.35",
     "react": "^19.1.0",
