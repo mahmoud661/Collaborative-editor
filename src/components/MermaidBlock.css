@@ -1,0 +1,72 @@
+/* Mermaid Block Styles */
+.mermaid-block {
+  position: relative;
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  margin: 8px 0;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.mermaid-block:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.mermaid-block .mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Code editor styling */
+.mermaid-block textarea {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  line-height: 1.4;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.mermaid-block textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Edit button styling */
+.mermaid-edit-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.mermaid-edit-btn:hover {
+  background: #2563eb;
+}
+
+/* Error styling */
+.mermaid-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 12px;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+/* Empty state styling */
+.mermaid-empty {
+  color: #9ca3af;
+  text-align: center;
+  padding: 32px;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+}
