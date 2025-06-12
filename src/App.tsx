@@ -32,8 +32,8 @@ export default function App() {
     // Get the current document (blocks) from the editor
     const currentBlocks = editor.document;
     setData(currentBlocks);
-    console.log("editor blocks:", currentBlocks);
-    console.log("editor data state:", data);
+    // console.log("editor blocks:", currentBlocks);
+    // console.log("editor data state:", data);
   };
 
   return (
