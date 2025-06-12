@@ -18,8 +18,13 @@ const MermaidBlockComponent = (props: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isCustomSized, setIsCustomSized] = useState(false);
   const mermaidRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const blockRef = useRef<HTMLDivElement>(null);
+  const resizeStartPos = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  const animationFrameRef = useRef<number | null>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -37,6 +42,89 @@ const MermaidBlockComponent = (props: any) => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isDropdownOpen]);
+
+  // Handle resize functionality
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!blockRef.current) return;
+    
+    const rect = blockRef.current.getBoundingClientRect();
+    resizeStartPos.current = {
+      x: e.clientX,
+      y: e.clientY,
+      width: rect.width,
+      height: rect.height
+    };
+    
+    setIsResizing(true);
+    setIsCustomSized(true);
+    
+    // Use requestAnimationFrame for smooth resizing
+    const handleMouseMove = (e: MouseEvent) => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      animationFrameRef.current = requestAnimationFrame(() => {
+        if (!blockRef.current) return;
+        
+        const deltaX = e.clientX - resizeStartPos.current.x;
+        const deltaY = e.clientY - resizeStartPos.current.y;
+        
+        // Get the editor container's width to constrain the maximum width
+        const editorContainer = blockRef.current.closest('.bn-editor') || 
+                               blockRef.current.closest('[data-node-type="blockContainer"]') ||
+                               blockRef.current.closest('.ProseMirror') ||
+                               blockRef.current.parentElement;
+        const containerWidth = editorContainer ? editorContainer.clientWidth : window.innerWidth;
+        const maxWidth = containerWidth - 64; // Account for padding, margins, and scrollbar
+        
+        const newWidth = Math.min(maxWidth, Math.max(200, resizeStartPos.current.width + deltaX));
+        const newHeight = Math.max(150, resizeStartPos.current.height + deltaY);
+        
+        // Direct DOM manipulation for better performance
+        blockRef.current.style.width = `${newWidth}px`;
+        blockRef.current.style.height = `${newHeight}px`;
+        blockRef.current.style.minWidth = `${newWidth}px`;
+        blockRef.current.style.minHeight = `${newHeight}px`;
+      });
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, []);
+
+  // Reset size to auto when switching to edit mode
+  useEffect(() => {
+    if (isEditing && blockRef.current) {
+      blockRef.current.style.width = '';
+      blockRef.current.style.height = '';
+      blockRef.current.style.minWidth = '';
+      blockRef.current.style.minHeight = '';
+      setIsCustomSized(false);
+    }
+  }, [isEditing]);
+
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   const renderMermaid = useCallback(async () => {
     if (!mermaidRef.current || !props.block.props.code) return;
@@ -75,7 +163,10 @@ const MermaidBlockComponent = (props: any) => {
   };
 
   return (
-    <div className="mermaid-block rounded-lg p-4 my-2 group">
+    <div 
+      ref={blockRef}
+      className={`mermaid-block rounded-lg p-4 my-2 group resizable ${isResizing ? 'resizing' : ''} ${isCustomSized ? 'custom-sized' : ''}`}
+    >
       {/* Header with icon and edit/preview toggle */}
       <div className={`flex justify-between items-center mb-2 transition-opacity duration-300 ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
         <div className="flex items-center gap-2">
@@ -164,6 +255,15 @@ const MermaidBlockComponent = (props: any) => {
             </div>
           )}
         </div>
+      )}
+      
+      {/* Resize handle - only show in preview mode */}
+      {!isEditing && (
+        <div
+          className="resize-handle"
+          onMouseDown={handleResizeStart}
+          title="Drag to resize"
+        />
       )}
     </div>
   );
