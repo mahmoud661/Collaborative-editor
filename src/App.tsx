@@ -1,54 +1,43 @@
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
-import { useCreateBlockNote } from "@blocknote/react";
 import { useState } from "react";
 import Header from "./components/Header";
-import { MermaidEditor } from "./components/MermaidEditor";
-import { editorSchema } from "./components/editorSchema";
+import UsernameModal from "./components/UsernameModal";
+import CollaborativeEditor from "./components/CollaborativeEditor";
 
 export default function App() {
-  // Creates a new editor instance with the custom schema
-  const editor = useCreateBlockNote({
-    
-    schema: editorSchema,
-    initialContent: [
-      {
-        type: "paragraph",
-        content: "Welcome to the Collaborative Editor!",
-      },
-      {
-        type: "paragraph",
-        content: "Press the '/' key to open the Slash Menu and add a Mermaid diagram",
-      },
-      {
-        type: "paragraph",
-      },
-    ],
-  });
+  const [username, setUsername] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [usersCount, setUsersCount] = useState(1);
 
-  const [data, setData] = useState(editor.document);
-
-  const handleChange = () => {
-    // Get the current document (blocks) from the editor
-    const currentBlocks = editor.document;
-    setData(currentBlocks);
-    // console.log("editor blocks:", currentBlocks);
-    // console.log("editor data state:", data);
-  };
+  // Show username modal if not logged in
+  if (!username) {
+    return <UsernameModal onSubmit={setUsername} />;
+  }
 
   return (
     <>
       <Header />
       <div className="max-w-4xl mx-auto p-4">
-        <MermaidEditor 
-          editor={editor}
-          onChange={handleChange}
-          theme="light"
-          className="min-h-11 mb-6"
+        {/* Connection status */}
+        <div className="mb-4 flex items-center justify-between bg-gray-50 rounded-lg p-3">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-sm font-medium">
+              {isConnected ? `Connected as ${username}` : 'Connecting...'}
+            </span>
+          </div>
+          <span className="text-sm text-gray-600">
+            {usersCount} user{usersCount !== 1 ? 's' : ''} online
+          </span>
+        </div>
+
+        <CollaborativeEditor 
+          username={username}
+          onConnectionChange={setIsConnected}
+          onUsersCountChange={setUsersCount}
         />
-        
       </div>
     </>
   );
 }
-
