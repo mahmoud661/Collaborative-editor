@@ -20,7 +20,6 @@ const MermaidBlockComponent = (props: any) => {
   const [error, setError] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [isCustomSized, setIsCustomSized] = useState(false);
   const mermaidRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
@@ -42,6 +41,16 @@ const MermaidBlockComponent = (props: any) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isDropdownOpen]);
 
+  // Apply stored size from props to DOM element
+  useEffect(() => {
+    if (blockRef.current && props.block.props.width && props.block.props.height) {
+      blockRef.current.style.width = props.block.props.width;
+      blockRef.current.style.height = props.block.props.height;
+      blockRef.current.style.minWidth = props.block.props.width;
+      blockRef.current.style.minHeight = props.block.props.height;
+    }
+  }, [props.block.props.width, props.block.props.height]);
+
   // Resize
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -54,7 +63,6 @@ const MermaidBlockComponent = (props: any) => {
       height: rect.height,
     };
     setIsResizing(true);
-    setIsCustomSized(true);
     const handleMouseMove = (e: MouseEvent) => {
       if (animationFrameRef.current)
         cancelAnimationFrame(animationFrameRef.current);
@@ -76,10 +84,13 @@ const MermaidBlockComponent = (props: any) => {
           Math.max(200, resizeStartPos.current.width + deltaX)
         );
         const newHeight = Math.max(150, resizeStartPos.current.height + deltaY);
-        blockRef.current.style.width = `${newWidth}px`;
-        blockRef.current.style.height = `${newHeight}px`;
-        blockRef.current.style.minWidth = `${newWidth}px`;
-        blockRef.current.style.minHeight = `${newHeight}px`;
+        const widthPx = `${newWidth}px`;
+        const heightPx = `${newHeight}px`;
+        
+        blockRef.current.style.width = widthPx;
+        blockRef.current.style.height = heightPx;
+        blockRef.current.style.minWidth = widthPx;
+        blockRef.current.style.minHeight = heightPx;
       });
     };
     const handleMouseUp = () => {
@@ -88,22 +99,42 @@ const MermaidBlockComponent = (props: any) => {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
+      
+      // Save the final size to block props
+      if (blockRef.current) {
+        const computedStyle = window.getComputedStyle(blockRef.current);
+        const finalWidth = computedStyle.width;
+        const finalHeight = computedStyle.height;
+        
+        props.editor.updateBlock(props.block, {
+          type: "mermaid",
+          props: { 
+            ...props.block.props,
+            width: finalWidth,
+            height: finalHeight
+          },
+        });
+      }
+      
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
-  }, []);
+  }, [props.editor, props.block]);
+
+  // Check if block has custom size from props
+  const hasCustomSize = props.block.props.width && props.block.props.height;
 
   // Reset size on edit
   useEffect(() => {
-    if (isEditing && blockRef.current && !isCustomSized) {
+    if (isEditing && blockRef.current && !hasCustomSize) {
       blockRef.current.style.width = "";
       blockRef.current.style.height = "";
       blockRef.current.style.minWidth = "";
       blockRef.current.style.minHeight = "";
     }
-  }, [isEditing, isCustomSized]);
+  }, [isEditing, hasCustomSize]);
 
   useEffect(
     () => () => {
@@ -159,10 +190,19 @@ const MermaidBlockComponent = (props: any) => {
       blockRef.current.style.height = "";
       blockRef.current.style.minWidth = "";
       blockRef.current.style.minHeight = "";
-      setIsCustomSized(false);
       setIsDropdownOpen(false);
+      
+      // Reset size in block props
+      props.editor.updateBlock(props.block, {
+        type: "mermaid",
+        props: { 
+          ...props.block.props,
+          width: "",
+          height: ""
+        },
+      });
     }
-  }, []);
+  }, [props.editor, props.block]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -179,7 +219,7 @@ const MermaidBlockComponent = (props: any) => {
       ref={blockRef}
       className={`mermaid-block rounded-lg p-4 my-2 group resizable ${
         isResizing ? "resizing" : ""
-      } ${isCustomSized ? "custom-sized" : ""}`}
+      } ${hasCustomSize ? "custom-sized" : ""}`}
     >
       <div
         className={`flex justify-between items-center mb-2 transition-opacity duration-300 ${
@@ -223,7 +263,7 @@ const MermaidBlockComponent = (props: any) => {
                   <Eye size={16} />
                   Preview
                 </button>
-                {isCustomSized && (
+                {hasCustomSize && (
                   <button
                     onClick={handleResetSize}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 border-t border-gray-100"
@@ -305,6 +345,12 @@ export const MermaidBlock = createReactBlockSpec(
       B -->|No| D[Action 2]
       C --> E[End]
       D --> E`,
+      },
+      width: {
+        default: "",
+      },
+      height: {
+        default: "",
       },
     },
     content: "none",
