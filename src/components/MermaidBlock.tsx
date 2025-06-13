@@ -1,8 +1,11 @@
 import { defaultProps } from "@blocknote/core";
 import { createReactBlockSpec } from "@blocknote/react";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Edit, Eye, Code2, ChevronDown, RotateCcw } from "lucide-react";
+import { Edit, Eye, Code2, ChevronDown, RotateCcw, Download, Palette, FileText } from "lucide-react";
 import mermaid from "mermaid";
+import { CodeMirrorEditor } from "./CodeMirrorEditor";
+import { getTemplatesByCategory } from "./MermaidTemplates";
+import { exportDiagram, isExportSupported } from "../utils/exportUtils";
 import "./MermaidBlock.css";
 
 // Initialize mermaid
@@ -20,6 +23,9 @@ const MermaidBlockComponent = (props: any) => {
   const [error, setError] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showThemes, setShowThemes] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const mermaidRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
@@ -149,6 +155,15 @@ const MermaidBlockComponent = (props: any) => {
     if (!mermaidRef.current || !props.block.props.code) return;
     try {
       setError(null);
+      
+      // Configure mermaid theme
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: props.block.props.theme || "default",
+        securityLevel: "loose",
+        suppressErrorRendering: true,
+      });
+      
       const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
       const { svg } = await mermaid.render(id, props.block.props.code);
       mermaidRef.current.innerHTML = svg;
@@ -156,7 +171,7 @@ const MermaidBlockComponent = (props: any) => {
       setError(err instanceof Error ? err.message : "Invalid Mermaid syntax");
       mermaidRef.current.innerHTML = "";
     }
-  }, [props.block.props.code]);
+  }, [props.block.props.code, props.block.props.theme]);
 
   useEffect(() => {
     if (!isEditing && props.block.props.code && mermaidRef.current) {
@@ -204,20 +219,58 @@ const MermaidBlockComponent = (props: any) => {
     }
   }, [props.editor, props.block]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setIsEditing(false);
+  // Theme handlers
+  const handleThemeChange = useCallback((theme: string) => {
+    props.editor.updateBlock(props.block, {
+      type: "mermaid",
+      props: { 
+        ...props.block.props,
+        theme
+      },
+    });
+    setShowThemes(false);
+    setIsDropdownOpen(false);
+  }, [props.editor, props.block]);
+
+  // Template handlers
+  const handleTemplateSelect = useCallback((templateCode: string) => {
+    setDraftCode(templateCode);
+    props.editor.updateBlock(props.block, {
+      type: "mermaid",
+      props: { 
+        ...props.block.props,
+        code: templateCode
+      },
+    });
+    setShowTemplates(false);
+    setIsDropdownOpen(false);
+  }, [props.editor, props.block]);
+
+  // Export handlers
+  const handleExport = useCallback(async (format: 'png' | 'svg') => {
+    if (!mermaidRef.current || !isExportSupported()) {
+      alert('Export is not supported in this browser');
+      return;
     }
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      setIsEditing(false);
+
+    try {
+      await exportDiagram(mermaidRef.current, { 
+        format,
+        filename: `mermaid-diagram-${Date.now()}`
+      });
+      setShowExport(false);
+      setIsDropdownOpen(false);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
     }
-  };
+  }, []);
 
   // Add debug to edit/preview button
   return (
     <div
       ref={blockRef}
-      className={`mermaid-block rounded-lg p-4 my-2 group resizable ${
+      className={`mermaid-block rounded-lg p-4 my-2 group resizable bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 ${
         isResizing ? "resizing" : ""
       } ${hasCustomSize ? "custom-sized" : ""}`}
     >
@@ -230,7 +283,7 @@ const MermaidBlockComponent = (props: any) => {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="cursor-pointer flex items-center gap-1 p-1 rounded hover:bg-gray-100"
+              className="cursor-pointer flex items-center gap-1 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               contentEditable={false}
               aria-label="Mermaid diagram options"
               title="Mermaid diagram options"
@@ -239,16 +292,18 @@ const MermaidBlockComponent = (props: any) => {
               <ChevronDown size={16} className="text-gray-400" />
             </button>
             {isDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                <div className="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
+              <div className="absolute left-0 top-full mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
                   Mermaid Actions
                 </div>
+                
+                {/* Basic Actions */}
                 <button
                   onClick={() => {
                     setIsEditing(true);
                     setIsDropdownOpen(false);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   <Edit size={16} />
                   Edit Code
@@ -258,24 +313,114 @@ const MermaidBlockComponent = (props: any) => {
                     setIsEditing(false);
                     setIsDropdownOpen(false);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                 >
                   <Eye size={16} />
                   Preview
                 </button>
-                {hasCustomSize && (
+
+                {/* Templates */}
+                <div className="border-t border-gray-100 dark:border-gray-700">
                   <button
-                    onClick={handleResetSize}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 border-t border-gray-100"
+                    onClick={() => setShowTemplates(!showTemplates)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                   >
-                    <RotateCcw size={16} />
-                    Reset Size
+                    <FileText size={16} />
+                    Templates
+                    <ChevronDown size={14} className={`ml-auto transition-transform ${showTemplates ? 'rotate-180' : ''}`} />
                   </button>
+                  {showTemplates && (
+                    <div className="max-h-48 overflow-y-auto">
+                      {Object.entries(getTemplatesByCategory()).map(([category, templates]) => (
+                        <div key={category} className="px-3 py-1">
+                          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{category}</div>
+                          {templates.map((template) => (
+                            <button
+                              key={template.id}
+                              onClick={() => handleTemplateSelect(template.code)}
+                              className="w-full text-left px-2 py-1 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+                              title={template.description}
+                            >
+                              {template.name}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Themes */}
+                <div className="border-t border-gray-100 dark:border-gray-700">
+                  <button
+                    onClick={() => setShowThemes(!showThemes)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                  >
+                    <Palette size={16} />
+                    Theme
+                    <ChevronDown size={14} className={`ml-auto transition-transform ${showThemes ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showThemes && (
+                    <div className="px-3 py-2">
+                      {['default', 'neutral', 'dark', 'forest', 'base'].map((theme) => (
+                        <button
+                          key={theme}
+                          onClick={() => handleThemeChange(theme)}
+                          className={`w-full text-left px-2 py-1 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded capitalize ${
+                            props.block.props.theme === theme ? 'bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300'
+                          }`}
+                        >
+                          {theme}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Export */}
+                <div className="border-t border-gray-100 dark:border-gray-700">
+                  <button
+                    onClick={() => setShowExport(!showExport)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                  >
+                    <Download size={16} />
+                    Export
+                    <ChevronDown size={14} className={`ml-auto transition-transform ${showExport ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showExport && (
+                    <div className="px-3 py-2">
+                      <button
+                        onClick={() => handleExport('png')}
+                        className="w-full text-left px-2 py-1 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+                      >
+                        Export as PNG
+                      </button>
+                      <button
+                        onClick={() => handleExport('svg')}
+                        className="w-full text-left px-2 py-1 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300"
+                      >
+                        Export as SVG
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Reset Size */}
+                {hasCustomSize && (
+                  <div className="border-t border-gray-100 dark:border-gray-700">
+                    <button
+                      onClick={handleResetSize}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                    >
+                      <RotateCcw size={16} />
+                      Reset Size
+                    </button>
+                  </div>
                 )}
               </div>
             )}
           </div>
-          <span className="text-sm font-medium text-gray-600">
+          <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
             Mermaid Diagram
           </span>
         </div>
@@ -289,22 +434,20 @@ const MermaidBlockComponent = (props: any) => {
       </div>
       {isEditing ? (
         <div>
-          <textarea
+          <CodeMirrorEditor
             value={draftCode}
-            onChange={(e) => handleCodeChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter your Mermaid diagram code here..."
-            className="w-full h-40 p-3 border border-gray-300 rounded font-mono text-sm focus:outline-none"
-            autoFocus
+            onChange={handleCodeChange}
+            isDark={document.documentElement.classList.contains('dark')}
+            className="mb-2"
           />
-          <div className="mt-2 text-xs text-gray-500">
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             Press Ctrl+Enter (Cmd+Enter on Mac) to preview, Escape to cancel
           </div>
         </div>
       ) : (
         <div>
           {error ? (
-            <div className="bg-red-50 border border-red-200 rounded p-3 text-red-700">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3 text-red-700 dark:text-red-400">
               <strong>Error:</strong> {error}
             </div>
           ) : (
@@ -313,7 +456,7 @@ const MermaidBlockComponent = (props: any) => {
               className="mermaid-diagram flex justify-center min-h-[100px]"
             >
               {!props.block.props.code && (
-                <div className="text-gray-400 text-center py-8">
+                <div className="text-gray-400 dark:text-gray-500 text-center py-8">
                   Click "Edit" to add your Mermaid diagram
                 </div>
               )}
@@ -351,6 +494,9 @@ export const MermaidBlock = createReactBlockSpec(
       },
       height: {
         default: "",
+      },
+      theme: {
+        default: "default",
       },
     },
     content: "none",
